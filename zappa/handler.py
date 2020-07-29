@@ -1,3 +1,6 @@
+from __future__ import unicode_literals
+import newrelic.agent
+
 import base64
 import boto3
 import collections
@@ -96,6 +99,26 @@ class LambdaHandler:
             if project_archive_path:
                 self.load_remote_project_archive(project_archive_path)
 
+            # Set up newrelic
+            # If slim_handler is used we need to adjust the file path of the newrelic.ini
+            try:
+                environment = os.environ.get("NEW_RELIC_ENV")
+                logging.debug(f"Newrelic env {environment}")
+                if environment is not None:
+                    newrelic.agent.global_settings().enabled = True
+                    is_slim_handler = getattr(self.settings, 'SLIM_HANDLER', False)
+                    if is_slim_handler:
+                        fn = f"/tmp/{self.settings.PROJECT_NAME}/newrelic.ini"
+                    else:
+                        fn = "/var/task/newrelic.ini"
+                    newrelic.agent.initialize(
+                        fn,
+                        environment=environment,
+                        log_file="stderr",
+                        log_level=logging.DEBUG,
+                    )
+            except Exception as e:
+                logging.error(str(e))
 
             # Load compiled library to the PythonPath
             # checks if we are the slim_handler since this is not needed otherwise
